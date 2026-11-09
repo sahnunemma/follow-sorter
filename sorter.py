@@ -6,10 +6,14 @@ description:
     to a CSV file.
 """
 
+import json
+import os
+from instagrapi import Client
+
 # constants
 SESSION_FILE = "instagram_session.json"
 CSV_FILE = "instagram_following.csv"
-SESSION_ID = "PASTE_YOUR_ACTUAL_SESSION_ID_HERE"
+SESSION_ID = "PASTE_SESSION_ID_HERE"  # replace with your own session ID from the browser cookie
 # NOTE: SESSION_ID comes from the browser cookie called 'sessionid'.
 #       It is a temporary workaround because the normal username/password
 #       login is being blocked.
@@ -18,34 +22,44 @@ SESSION_ID = "PASTE_YOUR_ACTUAL_SESSION_ID_HERE"
 # function: log in to Instagram, reusing a saved session if possible
 # NOTE: logging in with a session ID is a temporary workaround for now
 def loginToInstagram(client, sessionFile, sessionID):
-    '''
-    if sessionFile exists
-        try loadSavedSession(client, sessionFile)
-        if it worked, return True
-    if sessionID is still the placeholder text
-        tell the user to paste in their real session ID
-        stop the program
-    try to log in with sessionID
-        (temporary: replace with a normal login once the block is fixed)
-        save the new session to sessionFile
-    if the login fails
-        show the error and stop the program
-    '''
-    pass
+    # try the saved session
+    if os.path.exists(sessionFile):
+        if loadSavedSession(client, sessionFile):
+            return True
+
+    print("Attempting login using Session ID...")
+    try:
+        # temporary: replace with a normal login once the block is fixed
+        client.login_by_sessionid(sessionID)
+        print("Login successful via Session ID!")
+
+        # save the new session so the cookie isn't needed next time
+        with open(sessionFile, "w") as f:
+            json.dump(client.get_settings(), f)
+        print("Fresh session saved to file.")
+        return True
+    except Exception as e:
+        print(f"Session ID login failed: {e}")
+        exit()
 
 
 # function: load a saved session and check that it still works
 def loadSavedSession(client, sessionFile):
-    '''
-    read the session data from sessionFile
-    give the session data to the client
-    ask Instagram for the timeline to test the session
-    if anything goes wrong
-        clear the client's settings
+    try:
+        print("Loading saved session from file...")
+        with open(sessionFile, "r") as f:
+            sessionData = json.load(f)
+
+        client.set_settings(sessionData)
+
+        # test the session by asking Instagram for the timeline
+        client.get_timeline_feed()
+        print("Session successfully restored from cache!")
+        return True
+    except Exception as e:
+        print(f"Saved session file was invalid or expired: {e}")
+        client.set_settings({})  # clear the client's settings
         return False
-    return True
-    '''
-    pass
 
 
 # function: get everyone the logged in user follows
@@ -120,15 +134,16 @@ def exportFollowing(client, userList, csvFile):
 
 # function: run the whole program
 def main():
-    '''
-    create the Instagram client
+    client = Client()
     loginToInstagram(client, SESSION_FILE, SESSION_ID)
+    print(f"Logged in as user ID {client.user_id}")
+
+    '''
     userList = getFollowing(client)
     privates = exportFollowing(client, userList, CSV_FILE)
     tell the user the task is done and where the file was saved
     tell the user how many private accounts were found
     '''
-    pass
 
 
 main()
