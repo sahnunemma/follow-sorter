@@ -8,13 +8,15 @@ description:
 
 import json
 import os
+import csv
+import time
 from instagrapi import Client
 from instagrapi.exceptions import PrivateError, UserNotFound, ClientError
 
 # constants
 SESSION_FILE = "instagram_session.json"
 CSV_FILE = "instagram_following.csv"
-SESSION_ID = "62819976716%3AH0RvPrhus5Ctaf%3A11%3AAYlpyT9ogHXBXHrM4ntcSfCWIckynECTnwhi7nG_xQ"  # replace with your own session ID from the browser cookie
+SESSION_ID = "62819976716%3AwgbW4U3W1j7ZWo%3A27%3AAYlJ6u4IDKh8WC4fYngRTWiZJcOdBqXIQJFyVaFoLw"  # replace with your own session ID from the browser cookie
 # NOTE: SESSION_ID comes from the browser cookie called 'sessionid'.
 #       It is a temporary workaround because the normal username/password
 #       login is being blocked.
@@ -78,8 +80,6 @@ def getFollowing(client):
 def getLastPost(client, user):
     last_post_date = "N/A"
     last_post_caption = "N/A"
-    last_post_image_url = "N/A"
-
 
     if user.is_private:
        last_post_caption = "[Private Account - Restricted]"
@@ -91,7 +91,6 @@ def getLastPost(client, user):
               if medias:
                   latest_post = medias[0]
                   last_post_date = latest_post.taken_at
-                  last_post_image_url = latest_post.image_urls[0] if latest_post.image_urls else "N/A"
               else:
                   last_post_caption = "[No Posts Found]"
 
@@ -112,35 +111,34 @@ def getLastPost(client, user):
 
 # function: write one account's details as a row in the CSV
 def writeRow(csvWriter, user, date, caption):
-    '''
-    write the user ID, username, is private, date, and caption
-        as one row in the CSV file
-    '''
-    pass
+    csvWriter.writerow([user.pk, user.username, user.is_private, date, caption])
 
 
 # function: go through every account and save the results to a CSV
 def exportFollowing(client, userList, csvFile):
-    '''
-    open csvFile for writing
-    write the column headings
-        User ID, Username, Is Private, Last Post Date, Last Post Caption
-    start a counter at zero
-    make an empty list for private accounts
-    loop through userList
-        add one to the counter
-        if the account is private, add its username to the private list
-        getLastPost(client, user)
-        if Instagram blocked me
-            warn the user where it stopped
-            leave the loop early to keep the account safe
-        writeRow(csvWriter, user, date, caption)
-        print a progress message
-        wait 4 seconds so Instagram doesn't rate limit me
-    close the file
-    return the list of private accounts
-    '''
-    pass
+    with open(csvFile, "w", newline="", encoding="utf-8") as f:
+        csvWriter = csv.writer(f)
+        csvWriter.writerow(["User ID", "Username", "Is Private", "Last Post Date", "Last Post Caption"])
+        counter = 0
+        private_accounts = []
+
+        for user in userList:
+            counter += 1
+            if user.is_private:
+                private_accounts.append(user.username)
+
+            date, caption = getLastPost(client, user)
+
+            # check if Instagram blocked me
+            if caption.startswith("[Rate Limit or Blocked]"):
+                print(f"\nStopped at user {user.username}. Progress saved.")
+                break
+
+            writeRow(csvWriter, user, date, caption)
+            print(f"Processed {counter}/{len(userList)}: {user.username} - Last Post: {date}")
+            time.sleep(4)  # wait 4 seconds to avoid rate limiting
+
+    return private_accounts
 
 
 # function: run the whole program
@@ -150,16 +148,8 @@ def main():
     print(f"Logged in as {client.username}")
     userList = getFollowing(client)
     print(f"Following: {len(userList)}")
-    #test printing the last post for each user
-    for user in userList:
-       print(f"User: {user.username}, Last Post: {getLastPost(client, user)}")
-
-
-    '''
     privates = exportFollowing(client, userList, CSV_FILE)
-    tell the user the task is done and where the file was saved
-    tell the user how many private accounts were found
-    '''
-
+    print(f"\nTask complete! Processed data saved to {CSV_FILE}")
+    print(f"Found {len(privates)} private accounts.")
 
 main()
