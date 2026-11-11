@@ -9,11 +9,12 @@ description:
 import json
 import os
 from instagrapi import Client
+from instagrapi.exceptions import PrivateError, UserNotFound, ClientError
 
 # constants
 SESSION_FILE = "instagram_session.json"
 CSV_FILE = "instagram_following.csv"
-SESSION_ID = "PASTE_SESSION_ID_HERE"  # replace with your own session ID from the browser cookie
+SESSION_ID = "62819976716%3AH0RvPrhus5Ctaf%3A11%3AAYlpyT9ogHXBXHrM4ntcSfCWIckynECTnwhi7nG_xQ"  # replace with your own session ID from the browser cookie
 # NOTE: SESSION_ID comes from the browser cookie called 'sessionid'.
 #       It is a temporary workaround because the normal username/password
 #       login is being blocked.
@@ -75,27 +76,38 @@ def getFollowing(client):
 
 # function: get the date and caption of one account's newest post
 def getLastPost(client, user):
-    '''
-    set date and caption to "N/A"
-    if the account is private
-        caption is "[Private Account - Restricted]"
-    otherwise, try to get the single newest post
-        if there is a post
-            date is when it was posted
-            caption is the post's caption, or "[No Caption]" if it has none
-        if there are no posts
-            caption is "[No Posts Found]"
-    if Instagram says the account is private
-        caption is "[Private Account - Restricted]"
-    if the user can't be found
-        caption is "[User Not Found/Suspended]"
-    if Instagram blocks or rate limits me
-        pass the problem up so the main loop can stop
-    if any other error happens
-        caption is the error message
-    return the date and caption
-    '''
-    pass
+    last_post_date = "N/A"
+    last_post_caption = "N/A"
+    last_post_image_url = "N/A"
+
+
+    if user.is_private:
+       last_post_caption = "[Private Account - Restricted]"
+    else:
+          try:
+              # fetch only the single most recent post (amount=1)
+              medias = client.user_medias(user.pk, amount=1)
+            
+              if medias:
+                  latest_post = medias[0]
+                  last_post_date = latest_post.taken_at
+                  last_post_image_url = latest_post.image_urls[0] if latest_post.image_urls else "N/A"
+              else:
+                  last_post_caption = "[No Posts Found]"
+
+
+          #raise exceptions for specific error cases
+          except PrivateError:
+              last_post_caption = "[Private Account - Restricted]"
+          except UserNotFound:
+              last_post_caption = "[User Not Found/Suspended]"
+          except ClientError as e:
+              print(f"\n[Rate Limit or Blocked] Stopped at user {user.username}. Error: {e}")
+              print("Saving progress and exiting safely to protect your account.")
+          except Exception as e:
+              last_post_caption = f"[Error fetching post: {e}]"
+    return last_post_date, last_post_caption
+
 
 
 # function: write one account's details as a row in the CSV
@@ -138,6 +150,10 @@ def main():
     print(f"Logged in as {client.username}")
     userList = getFollowing(client)
     print(f"Following: {len(userList)}")
+    #test printing the last post for each user
+    for user in userList:
+       print(f"User: {user.username}, Last Post: {getLastPost(client, user)}")
+
 
     '''
     privates = exportFollowing(client, userList, CSV_FILE)
