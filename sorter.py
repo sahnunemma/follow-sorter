@@ -64,14 +64,13 @@ def loadSavedSession(client, sessionFile):
 
 # function: get everyone the logged in user follows
 def getFollowing(client):
-    '''
-    ask Instagram for the accounts the user follows
-    print how many there are
-    turn the results into a list
-    if this fails, show the error and stop the program
-    return the list
-    '''
-    pass
+    try:
+        following = client.user_following(client.user_id)
+        return list(following.values())
+    except Exception as e:
+        print(f"Failed to get following list: {e}")
+    exit()
+
 
 
 # function: get the date and caption of one account's newest post
@@ -136,10 +135,11 @@ def exportFollowing(client, userList, csvFile):
 def main():
     client = Client()
     loginToInstagram(client, SESSION_FILE, SESSION_ID)
-    print(f"Logged in as user ID {client.user_id}")
+    print(f"Logged in as {client.username}")
+    userList = getFollowing(client)
+    print(f"Following: {len(userList)}")
 
     '''
-    userList = getFollowing(client)
     privates = exportFollowing(client, userList, CSV_FILE)
     tell the user the task is done and where the file was saved
     tell the user how many private accounts were found
